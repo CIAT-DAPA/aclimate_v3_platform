@@ -315,6 +315,54 @@ services:
     networks:
       - aclimate_net
 
+  # ── Admin (Flask + Gunicorn) ──
+  admin:
+    image: ghcr.io/ciat-dapa/aclimate_v3_admin:latest
+    container_name: aclimate_admin
+    restart: unless-stopped
+    environment:
+      # Server port (external configurable)
+      PORT: "${ADMIN_PORT:-3003}"
+      # Database (Aclimate main + frontend users DB)
+      DATABASE_URL: "postgresql://${ACLIMATE_DB_USER:-postgres}:${ACLIMATE_DB_PASSWORD:-admin}@db_aclimate:5432/${ACLIMATE_DB_NAME:-aclimate_db}"
+      DATABASE_URL_FRONT: "postgresql://${ACLIMATE_DB_USER:-postgres}:${ACLIMATE_DB_PASSWORD:-admin}@db_aclimate:5432/aclimate_frontend_users_db"
+      # WebAPI URL — same as the browser (server-side calls via localhost)
+      API_BASE_URL: "http://localhost:${WEBAPI_PORT:-3002}"
+      # Keycloak auth — same URL as the browser (single issuer)
+      KEYCLOAK_SERVER_URL: "http://localhost:${KEYCLOAK_PORT:-8080}"
+      KEYCLOAK_REALM: ${REALM_NAME:-aclimate}
+      KEYCLOAK_CLIENT_ID: ${ADMIN_CLIENT_ID:-aclimate_admin}
+      KEYCLOAK_CLIENT_SECRET: ${ADMIN_CLIENT_SECRET}
+      # Security
+      HEALTH_TOKEN: ${HEALTH_TOKEN:-}
+    ports:
+      - "${ADMIN_PORT:-3003}:3003"
+    # Resolve localhost to the host gateway to reach WebAPI/Keycloak
+    extra_hosts:
+      - "localhost:host-gateway"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      webapi:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request, os; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '3003') + '/health')",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - aclimate_net
+
   # ── Frontend (Next.js) ──
   frontend:
     build:

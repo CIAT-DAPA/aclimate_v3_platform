@@ -34,6 +34,10 @@ scrape_configs:
         labels:
           service: keycloak
       - targets:
+          - http://admin:3003/health
+        labels:
+          service: admin
+      - targets:
           - http://geoserver:8080/geoserver/web/
         labels:
           service: geoserver

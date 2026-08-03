@@ -47,16 +47,18 @@
     {
       "clientId": "aclimate_admin",
       "name": "AClimate Admin Panel",
-      "description": "Reserved for future admin panel",
+      "description": "Confidential client used by the admin panel",
       "enabled": true,
       "publicClient": false,
-      "secret": "***SET_IN_ENV***",
+      "secret": "CHANGE_ME_ADMIN_SECRET",
       "redirectUris": [
         "http://localhost:3000/*",
+        "http://localhost:3003/*",
         "http://localhost:8080/*"
       ],
       "webOrigins": [
         "http://localhost:3000",
+        "http://localhost:3003",
         "http://localhost:8080"
       ],
       "standardFlowEnabled": true,
