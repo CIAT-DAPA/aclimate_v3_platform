@@ -1,0 +1,14 @@
+# AClimate v3 — Grafana dashboard provisioning
+# Loads dashboards from the mounted dashboards directory
+apiVersion: 1
+
+providers:
+  - name: 'AClimate'
+    orgId: 1
+    folder: 'AClimate'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

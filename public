@@ -1,0 +1,8 @@
+account -=True
+account-console -=True
+aclimate_admin -=False
+aclimate_frontend_honduras -=False
+admin-cli -=True
+broker -=False
+realm-management -=False
+security-admin-console -=True

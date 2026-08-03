@@ -1,0 +1,369 @@
+# ============================================================
+# AClimate v3 Platform — Docker Compose
+# ============================================================
+# Multi-architecture deployment for local development and
+# staging environments. Ready for Kubernetes migration.
+#
+# Usage:
+#   docker compose --profile db up -d   # with local DBs
+#   docker compose up -d                 # with external DBs
+# ============================================================
+
+name: aclimate_v3
+
+# ──────────────────────────────────────────────
+# Volumes
+# ──────────────────────────────────────────────
+volumes:
+  db_keycloak_data:
+  db_aclimate_data:
+  keycloak_data:
+  geoserver_data:
+  geoserver_gwc:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+
+# ──────────────────────────────────────────────
+# Networks
+# ──────────────────────────────────────────────
+networks:
+  aclimate_net:
+    driver: bridge
+
+# ──────────────────────────────────────────────
+# Services
+# ──────────────────────────────────────────────
+services:
+  # ── PostgreSQL: Keycloak (plain Postgres) ──
+  db_keycloak:
+    profiles: [db]
+    image: postgres:16-alpine
+    container_name: aclimate_db_keycloak
+    restart: unless-stopped
+    shm_size: 256mb
+    environment:
+      POSTGRES_USER: ${KEYCLOAK_DB_USER:-keycloak}
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_pass}
+      POSTGRES_DB: ${KEYCLOAK_DB_NAME:-keycloak}
+    ports:
+      - "${KEYCLOAK_DB_EXTERNAL_PORT:-5433}:5432"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - db_keycloak_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${KEYCLOAK_DB_USER:-keycloak}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aclimate_net
+
+  # ── PostgreSQL: Aclimate (PostGIS) ──
+  db_aclimate:
+    profiles: [db]
+    image: postgis/postgis:16-3.4
+    container_name: aclimate_db_aclimate
+    restart: unless-stopped
+    shm_size: 256mb
+    environment:
+      POSTGRES_USER: ${ACLIMATE_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${ACLIMATE_DB_PASSWORD:-admin}
+      POSTGRES_DB: ${ACLIMATE_DB_NAME:-aclimate_db}
+      # Allow enough time for pg_restore of large backups
+      PG_ENTRYPOINT_INITDB_TIMEOUT: 600
+    ports:
+      - "5432:5432"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - db_aclimate_data:/var/lib/postgresql/data
+      - ./bootstrap/db/init:/docker-entrypoint-initdb.d:ro
+      - ./bootstrap/db/dumps:/dumps:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ACLIMATE_DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aclimate_net
+
+  # ── Keycloak ──
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.7
+    container_name: aclimate_keycloak
+    restart: unless-stopped
+    environment:
+      # Admin credentials
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # Database connection (Keycloak uses its own DB schema)
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://${KEYCLOAK_DB_HOST:-db_keycloak}:${KEYCLOAK_DB_PORT:-5432}/${KEYCLOAK_DB_NAME:-keycloak}
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER:-keycloak}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_pass}
+      # Hostname / network
+      # Dev mode: allow internal (keycloak:8080) and external (localhost:8080) access
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-localhost}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_PORT: 8080
+      KC_HTTP_HOST: 0.0.0.0
+      KC_PROXY: edge
+      # Health checks on management interface (port 9000)
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_HTTP_MANAGEMENT_PORT: 9000
+    command:
+      - start-dev
+      - --import-realm
+    ports:
+      - "${KEYCLOAK_PORT:-8080}:8080"
+      - "9000:9000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./config/keycloak/aclimate-realm.json:/opt/keycloak/data/import/aclimate-realm.json:ro
+      - ./config/keycloak/themes:/opt/keycloak/themes:ro
+      - ./config/keycloak/providers:/opt/keycloak/providers:rw
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bash",
+          "-c",
+          "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && grep -q '200 OK' <&3 || exit 1",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    networks:
+      - aclimate_net
+
+  # ── GeoServer ──
+  geoserver:
+    image: kartoza/geoserver:2.25.2
+    container_name: aclimate_geoserver
+    restart: unless-stopped
+    environment:
+      # Admin credentials (from WebAPI/GeoServer vars)
+      GEOSERVER_ADMIN_USER: ${GEOSERVER_USER:-admin}
+      GEOSERVER_ADMIN_PASSWORD: ${GEOSERVER_PASSWORD:-geoserver}
+      # Data directory
+      GEOSERVER_DATA_DIR: /opt/geoserver/data_dir
+      # Internally GeoServer runs on 8080; we expose on 8600 to avoid collision
+    ports:
+      - "${GEOSERVER_PORT:-8600}:8080"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - geoserver_data:/opt/geoserver/data_dir
+      - geoserver_gwc:/opt/geoserver/data_dir/gwc
+      - ./config/geoserver/fonts:/opt/fonts:rw
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/geoserver/"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 60s
+    networks:
+      - aclimate_net
+
+  # ── WebAPI ──
+  webapi:
+    image: ghcr.io/ciat-dapa/aclimate_v3_webapi:latest
+    container_name: aclimate_webapi
+    restart: unless-stopped
+    environment:
+      # Server port (external configurable)
+      PORT: "${WEBAPI_PORT:-3002}"
+      # Database URL — generated from DB infra variables
+      DATABASE_URL: "postgresql://${ACLIMATE_DB_USER:-postgres}:${ACLIMATE_DB_PASSWORD:-admin}@db_aclimate:5432/${ACLIMATE_DB_NAME:-aclimate_db}"
+      # Keycloak auth — same URL as the browser (single issuer for token validation)
+      KEYCLOAK_URL: "http://localhost:${KEYCLOAK_PORT:-8080}"
+      REALM_NAME: ${REALM_NAME}
+      CLIENT_ID: ${CLIENT_ID}
+      CLIENT_SECRET: ${CLIENT_SECRET}
+      # GeoServer — internal Docker DNS, fixed
+      GEOSERVER_URL: "http://geoserver:8080/geoserver/"
+      GEOSERVER_USER: ${GEOSERVER_USER}
+      GEOSERVER_PASSWORD: ${GEOSERVER_PASSWORD}
+      # Tuning
+      MAX_WORKERS: ${MAX_WORKERS:-4}
+      MAX_SYNC_DAYS: ${MAX_SYNC_DAYS:-7}
+      # Security
+      HEALTH_TOKEN: ${HEALTH_TOKEN:-}
+    ports:
+      - "${WEBAPI_PORT:-3002}:3002"
+    # Resolve localhost to the host gateway so the container can reach
+    # Keycloak at the published port (same URL as the browser → same issuer).
+    extra_hosts:
+      - "localhost:host-gateway"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      geoserver:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    networks:
+      - aclimate_net
+
+  # ── Prometheus (monitoring) ──
+  prometheus:
+    profiles: [monitoring]
+    image: prom/prometheus:v2.53.0
+    container_name: aclimate_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./config/prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - aclimate_net
+
+  # ── Grafana (monitoring) ──
+  grafana:
+    profiles: [monitoring]
+    image: grafana/grafana:11.1.0
+    container_name: aclimate_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:rw
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - aclimate_net
+
+  # ── Loki (monitoring — log aggregation) ──
+  loki:
+    profiles: [monitoring]
+    image: grafana/loki:3.1.0
+    container_name: aclimate_loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - aclimate_net
+
+  # ── Promtail (monitoring — log collector) ──
+  promtail:
+    profiles: [monitoring]
+    image: grafana/promtail:3.1.0
+    container_name: aclimate_promtail
+    restart: unless-stopped
+    volumes:
+      - ./config/promtail:/etc/promtail:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/promtail.yml
+    depends_on:
+      - loki
+    networks:
+      - aclimate_net
+
+  # ── Blackbox Exporter (monitoring — probes all service health endpoints) ──
+  blackbox-exporter:
+    profiles: [monitoring]
+    image: prom/blackbox-exporter:v0.25.0
+    container_name: aclimate_blackbox
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/blackbox_exporter/blackbox.yml
+    volumes:
+      - ./config/blackbox:/etc/blackbox_exporter:ro
+    ports:
+      - "9115:9115"
+    networks:
+      - aclimate_net
+
+  # ── Frontend (Next.js) ──
+  frontend:
+    build:
+      context: ${FRONTEND_PATH:-../aclimate_v3_frontend}
+      dockerfile: Dockerfile
+      args:
+        # URLs generated automatically from port variables — no manual URL editing
+        NEXT_PUBLIC_KEYCLOAK_URL: "http://localhost:${KEYCLOAK_PORT:-8080}"
+        NEXT_PUBLIC_KEYCLOAK_REALM: ${NEXT_PUBLIC_KEYCLOAK_REALM}
+        NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: ${NEXT_PUBLIC_KEYCLOAK_CLIENT_ID}
+        NEXT_PUBLIC_ACLIMATE_API_URL: "http://localhost:${WEBAPI_PORT:-3002}"
+        NEXT_PUBLIC_AUTH_API_URL: "http://localhost:${WEBAPI_PORT:-3002}/api"
+        NEXT_PUBLIC_ACLIMATE_API_FRONTEND_URL: ${NEXT_PUBLIC_ACLIMATE_API_FRONTEND_URL}
+        NEXT_PUBLIC_ACLIMATE_APP_ID: ${NEXT_PUBLIC_ACLIMATE_APP_ID}
+        NEXT_PUBLIC_COUNTRY_NAME: ${NEXT_PUBLIC_COUNTRY_NAME}
+        NEXT_PUBLIC_GEOSERVER_URL: "http://localhost:${GEOSERVER_PORT:-8600}/geoserver"
+        NEXT_PUBLIC_SHOW_STATIONS_MODULE: ${NEXT_PUBLIC_SHOW_STATIONS_MODULE}
+        NEXT_PUBLIC_SHOW_USERS_MODULE: ${NEXT_PUBLIC_SHOW_USERS_MODULE}
+        NEXT_PUBLIC_FORECAST_API_URL: ${NEXT_PUBLIC_FORECAST_API_URL}
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH}
+    container_name: aclimate_frontend
+    restart: unless-stopped
+    environment:
+      # Runtime-only variables (server-side, not in bundle)
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    # Allow the Next.js server to reach Keycloak at localhost (public URL)
+    extra_hosts:
+      - "localhost:host-gateway"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      webapi:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:' + (process.env.PORT || '3000') + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - aclimate_net

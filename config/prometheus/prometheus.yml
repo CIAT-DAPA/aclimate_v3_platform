@@ -1,0 +1,46 @@
+# AClimate v3 — Prometheus configuration
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: prometheus
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  # Keycloak metrics (management port 9000)
+  - job_name: keycloak
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["keycloak:9000"]
+
+  # Service health probes (blackbox — uptime & response time of each service)
+  - job_name: health_checks
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://webapi:3002/health
+        labels:
+          service: webapi
+      - targets:
+          - http://frontend:3000/api/health
+        labels:
+          service: frontend
+      - targets:
+          - http://keycloak:8080/realms/aclimate
+        labels:
+          service: keycloak
+      - targets:
+          - http://geoserver:8080/geoserver/web/
+        labels:
+          service: geoserver
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

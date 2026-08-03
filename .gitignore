@@ -1,0 +1,21 @@
+# Environment
+.env
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+**/.next/
+**/node_modules/
+
+# Database dumps (backups are not tracked in git)
+bootstrap/db/dumps/
+*.dump
+*.backup
+*.sql.gz
