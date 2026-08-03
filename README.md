@@ -215,21 +215,45 @@ docker compose up -d
 
 ---
 
-## 📈 Monitoring (Grafana + Prometheus + Loki)
+## 📈 Monitoring (Grafana + Prometheus + Loki + Blackbox)
 
-Monitoring runs entirely inside Compose with the `monitoring` profile:
+The full observability stack runs inside Compose with the `monitoring` profile:
 
 ```bash
 docker compose --profile db --profile monitoring up -d
 ```
 
-| Service    | URL                   | Credentials | Purpose                     |
-| ---------- | --------------------- | ----------- | --------------------------- |
-| Grafana    | http://localhost:3001 | admin/admin | Dashboards for all services |
-| Prometheus | http://localhost:9090 | —           | Metrics storage & scraping  |
-| Loki       | http://localhost:3100 | —           | Log aggregation backend     |
+| Service           | URL                   | Credentials | Purpose                                  |
+| ----------------- | --------------------- | ----------- | ---------------------------------------- |
+| Grafana           | http://localhost:3001 | admin/admin | Dashboards and log explorer              |
+| Prometheus        | http://localhost:9090 | —           | Metrics storage & scraping               |
+| Loki              | http://localhost:3100 | —           | Log aggregation backend                  |
+| Promtail          | —                     | —           | Collects container logs → Loki           |
+| Blackbox exporter | http://localhost:9115 | —           | Probes health endpoints of every service |
 
-Dashboards are auto-provisioned from `config/grafana/dashboards/`.
+### What is monitored
+
+| Data                                                      | Source                                  |
+| --------------------------------------------------------- | --------------------------------------- |
+| Uptime + latency of WebAPI, Frontend, Keycloak, GeoServer | Blackbox → Prometheus (`probe_success`) |
+| Keycloak JVM, HTTP requests, threads, errors              | Keycloak `/metrics` → Prometheus        |
+| Logs of **all** containers                                | Promtail → Loki                         |
+
+### Dashboard: `AClimate Overview` (auto-provisioned)
+
+| Panel                           | Type       | Source     |
+| ------------------------------- | ---------- | ---------- |
+| Service Status (blackbox)       | table      | Prometheus |
+| Response Time (blackbox)        | timeseries | Prometheus |
+| Container Logs                  | logs       | Loki       |
+| Log Volume per Container        | timeseries | Loki       |
+| Keycloak Request Rate           | timeseries | Prometheus |
+| Keycloak JVM Heap Memory        | timeseries | Prometheus |
+| Total HTTP 200 / 5xx (Keycloak) | stat       | Prometheus |
+| JVM Live Threads                | stat       | Prometheus |
+
+Dashboards are auto-provisioned from `config/grafana/dashboards/` on first start.
+To query logs interactively: Grafana → **Explore** (compass icon) → datasource **Loki** → `{container=~"aclimate.*"}`.
 
 ---
 
@@ -298,26 +322,3 @@ Initial user: `admin` / `admin`
 3. **Keycloak**: switch from `start-dev` to `start` with HTTPS (`KC_HTTPS_*`)
 4. **DBs**: use managed instances (RDS/Cloud SQL) without the `db` profile
 5. **Reverse proxy** (Nginx/Traefik) routing each service
-
-### Phase 3: Kubernetes (roadmap)
-
-This compose maps 1:1 to Kubernetes:
-
-| Compose                     | Kubernetes                         |
-| --------------------------- | ---------------------------------- |
-| `image:` + `container_name` | Deployment + Service               |
-| `volumes:` (named)          | PVC (PersistentVolumeClaim)        |
-| `environment:`              | ConfigMap + Secret                 |
-| `ports:`                    | Service (NodePort/LoadBalancer)    |
-| `depends_on`                | Init containers + readiness probes |
-| `healthcheck`               | livenessProbe + readinessProbe     |
-| `profiles`                  | Namespaces / Helm environments     |
-
-**Upcoming K8s steps** (not implemented yet):
-
-1. Helm charts per microservice + `aclimate-stack` umbrella chart
-2. Ingress Controller (nginx/traefik) routing per service
-3. `kube-prometheus-stack` for monitoring (Prometheus + Grafana)
-4. Loki + Promtail for aggregated logs
-5. ArgoCD/Flux for GitOps (auto-deploy from git)
-6. Backups: PGBackrest/Velero + snapshots of `GEOSERVER_DATA_DIR`
