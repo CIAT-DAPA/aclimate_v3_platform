@@ -1,0 +1,107 @@
+{
+  "realm": "aclimate",
+  "displayName": "AClimate",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "resetPasswordAllowed": true,
+  "clients": [
+    {
+      "clientId": "aclimate_frontend_honduras",
+      "name": "AClimate Frontend Honduras",
+      "description": "Confidential client used by the WebAPI (password grant) and frontend (OIDC redirect)",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "CHANGE_ME_DEV_SECRET",
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:8080/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:8080",
+        "http://localhost:3002"
+      ],
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:3000/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-account",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "account",
+            "access.token.claim": "true",
+            "id.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "aclimate_admin",
+      "name": "AClimate Admin Panel",
+      "description": "Confidential client used by the admin panel",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "CHANGE_ME_ADMIN_SECRET",
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:3003/*",
+        "http://localhost:8080/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:3003",
+        "http://localhost:8080"
+      ],
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true
+    }
+  ],
+  "users": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "username": "admin",
+      "email": "admin@aclimate.org",
+      "firstName": "Admin",
+      "lastName": "AClimate",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "CHANGE_ME_ADMIN_PASSWORD",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin"
+      ],
+      "clientRoles": {
+        "realm-management": [
+          "realm-admin"
+        ]
+      }
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "admin",
+        "description": "Administrator role"
+      },
+      {
+        "name": "user",
+        "description": "Regular user"
+      }
+    ]
+  }
+}

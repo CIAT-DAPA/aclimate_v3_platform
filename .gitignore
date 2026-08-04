@@ -19,3 +19,6 @@ bootstrap/db/dumps/
 *.dump
 *.backup
 *.sql.gz
+
+# Keycloak realm with real secrets (use aclimate-realm.example.json)
+config/keycloak/aclimate-realm.json

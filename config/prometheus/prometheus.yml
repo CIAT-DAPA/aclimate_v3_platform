@@ -38,6 +38,10 @@ scrape_configs:
         labels:
           service: admin
       - targets:
+          - http://users-api:3004/health
+        labels:
+          service: users-api
+      - targets:
           - http://geoserver:8080/geoserver/web/
         labels:
           service: geoserver

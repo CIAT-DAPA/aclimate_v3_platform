@@ -87,6 +87,7 @@ services:
       - db_aclimate_data:/var/lib/postgresql/data
       - ./bootstrap/db/init:/docker-entrypoint-initdb.d:ro
       - ./bootstrap/db/dumps:/dumps:ro
+      - ./config/keycloak/aclimate-realm.json:/realm.json:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${ACLIMATE_DB_USER:-postgres}"]
       interval: 10s
@@ -356,6 +357,45 @@ services:
           "-c",
           "import urllib.request, os; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '3003') + '/health')",
         ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - aclimate_net
+
+  # ── Users API (FastAPI — user preferences / stations backend) ──
+  users-api:
+    image: ghcr.io/ciat-dapa/aclimate_v3_frontend_users_webapi:latest
+    container_name: aclimate_users_api
+    restart: unless-stopped
+    environment:
+      # Server port
+      PORT: "${USERS_API_PORT:-3004}"
+      # Database (frontend users DB — separate from main climate DB)
+      DATABASE_URL_FRONT: "postgresql://${ACLIMATE_DB_USER:-postgres}:${ACLIMATE_DB_PASSWORD:-admin}@db_aclimate:5432/aclimate_frontend_users_db"
+      # Keycloak auth — same URL as the browser (single issuer)
+      KEYCLOAK_URL: "http://localhost:${KEYCLOAK_PORT:-8080}"
+      REALM_NAME: ${REALM_NAME:-aclimate}
+      CLIENT_ID: ${ADMIN_CLIENT_ID:-aclimate_admin}
+      CLIENT_SECRET: ${ADMIN_CLIENT_SECRET}
+      # Security
+      HEALTH_TOKEN: ${HEALTH_TOKEN:-}
+    ports:
+      - "${USERS_API_PORT:-3004}:3004"
+    # Resolve localhost to the host gateway to reach Keycloak at the published port
+    extra_hosts:
+      - "localhost:host-gateway"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      webapi:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3004/health"]
       interval: 30s
       timeout: 5s
       retries: 5

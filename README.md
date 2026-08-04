@@ -26,11 +26,12 @@ Docker Compose orchestration for the AClimate v3 ecosystem. Launches the API, Fr
             └──────────────────┘
 ```
 
-**7 services** from the repos:
+**8 services** from the repos:
 
 - **API**: `ghcr.io/ciat-dapa/aclimate_v3_webapi` ([repo](https://github.com/CIAT-DAPA/aclimate_v3_webapi))
 - **Frontend**: local build from `aclimate_v3_frontend` ([repo](https://github.com/CIAT-DAPA/aclimate_v3_frontend))
 - **Admin**: local build from `aclimate_v3_admin` ([repo](https://github.com/CIAT-DAPA/aclimate_v3_admin))
+- **Users API**: `ghcr.io/ciat-dapa/aclimate_v3_frontend_users_webapi` ([repo](https://github.com/CIAT-DAPA/aclimate_v3_frontend_users_webapi)) — user preferences/stations backend
 - **Keycloak** + **GeoServer** + **2x PostgreSQL (PostGIS)**
 
 ---
