@@ -22,3 +22,7 @@ bootstrap/db/dumps/
 
 # Keycloak realm with real secrets (use aclimate-realm.example.json)
 config/keycloak/aclimate-realm.json
+
+# GeoServer data_dir (heavy raster data, not tracked in git)
+bootstrap/geoserver/data_dir/*
+!bootstrap/geoserver/data_dir/.gitkeep

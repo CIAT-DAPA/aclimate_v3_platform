@@ -281,7 +281,37 @@ To query logs interactively: Grafana → **Explore** (compass icon) → datasour
 
 ---
 
-## 🛠️ Troubleshooting
+## �️ GeoServer — Bootstrap data
+
+GeoServer starts with a pre-configured data directory copied on **first start** (empty volume) from `bootstrap/geoserver/data_dir/`:
+
+```
+bootstrap/geoserver/
+├── init.sh          ← idempotent: copies data_dir only if the volume is empty
+└── data_dir/        ← gitignored: workspaces XMLs + raster data (TIFs)
+    ├── workspace.xml
+    ├── namespace.xml
+    ├── styles/
+    ├── workspaces/
+    └── data/
+        └── climate_index/...
+```
+
+To seed your own data:
+
+```bash
+# 1. Export the data_dir from an existing GeoServer
+scp -r user@server:/opt/geoserver/data_dir/* bootstrap/geoserver/data_dir/
+
+# 2. On a clean volume (first start), GeoServer copies it automatically
+docker compose --profile db up -d
+```
+
+> ⚠️ `bootstrap/geoserver/data_dir/` is **gitignored** (heavy raster data). Only the `init.sh` script is tracked.
+
+---
+
+## �🛠️ Troubleshooting
 
 | Problem                          | Solution                                                                                                 |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -293,16 +323,52 @@ To query logs interactively: Grafana → **Explore** (compass icon) → datasour
 
 ---
 
-## 🔐 Keycloak — Bootstrap realm
+## 🔐 Keycloak — Realm setup
 
-On first start, `config/keycloak/aclimate-realm.json` is imported, creating:
+The Keycloak realm is imported on first start. There are **two files**:
 
-| Client                       | Type         | Use                                |
-| ---------------------------- | ------------ | ---------------------------------- |
-| `aclimate_frontend_honduras` | confidential | API + Frontend (login/password)    |
-| `aclimate_admin`             | confidential | Admin panel (reserved for Phase 2) |
+| File                                          | Committed | Contents                                             |
+| --------------------------------------------- | --------- | ---------------------------------------------------- |
+| `config/keycloak/aclimate-realm.example.json` | ✅ Yes    | Template with placeholders (`CHANGE_ME_*`)           |
+| `config/keycloak/aclimate-realm.json`         | ❌ No     | Real secrets (gitignored) — create from the template |
 
-Initial user: `admin` / `admin`
+### 1. Create your realm file
+
+```bash
+cp config/keycloak/aclimate-realm.example.json config/keycloak/aclimate-realm.json
+```
+
+Then edit the `CHANGE_ME_*` values:
+
+| Placeholder                | Replace with                                       |
+| -------------------------- | -------------------------------------------------- |
+| `CHANGE_ME_DEV_SECRET`     | WebAPI/frontend client secret                      |
+| `CHANGE_ME_ADMIN_SECRET`   | Admin panel client secret                          |
+| `CHANGE_ME_ADMIN_PASSWORD` | Initial admin user password (default dev: `admin`) |
+
+> ⚠️ `aclimate-realm.json` is gitignored — never commit real secrets. Only the `.example` file is tracked.
+
+### 2. What gets created on first start
+
+| Client                       | Type         | Use                             |
+| ---------------------------- | ------------ | ------------------------------- |
+| `aclimate_frontend_honduras` | confidential | API + Frontend (login/password) |
+| `aclimate_admin`             | confidential | Admin panel                     |
+
+Initial user: `admin` (password from `CHANGE_ME_ADMIN_PASSWORD`)
+
+### 3. Admin permissions bootstrap (automatic)
+
+The DB init scripts **auto-grant full permissions** to the Keycloak admin on first clean start:
+
+```
+bootstrap/db/init/04-ensure-admin-user.sh   ← inserts admin into `users` table
+bootstrap/db/init/05-admin-permissions.sql  ← grants create/read/update/delete on all modules & countries
+```
+
+The admin's **UUID is read dynamically** from `aclimate-realm.json` by `04-ensure-admin-user.sh` — so if you change the admin `id` in the realm file, the script adapts automatically (single source of truth, no need to edit the script).
+
+> Users created later from the admin panel do **not** get automatic permissions — assign them via the panel's user management module.
 
 ---
 

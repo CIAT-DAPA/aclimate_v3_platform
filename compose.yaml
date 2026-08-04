@@ -176,6 +176,10 @@ services:
       - geoserver_data:/opt/geoserver/data_dir
       - geoserver_gwc:/opt/geoserver/data_dir/gwc
       - ./config/geoserver/fonts:/opt/fonts:rw
+      # Bootstrap data (gitignored, contains the pre-configured data_dir)
+      - ./bootstrap/geoserver/data_dir:/bootstrap-geoserver/data_dir:ro
+      # Init script — runs on each container start, copies bootstrap only if data_dir empty
+      - ./bootstrap/geoserver/init.sh:/docker-entrypoint-geoserver.d/init.sh:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/geoserver/"]
       interval: 30s
