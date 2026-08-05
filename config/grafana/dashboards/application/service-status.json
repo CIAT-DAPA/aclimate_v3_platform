@@ -1,0 +1,18 @@
+{
+  "uid": "service-status",
+  "title": "Service Status (Blackbox)",
+  "tags": ["application"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Services Up", "gridPos": {"h": 6, "w": 8, "x": 0, "y": 0}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "sum(probe_success{job=\"health_checks\"})", "refId": "A"}]},
+    {"id": 2, "type": "stat", "title": "Services Down", "gridPos": {"h": 6, "w": 8, "x": 8, "y": 0}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "count(probe_success{job=\"health_checks\"} == 0)", "refId": "A"}]},
+    {"id": 3, "type": "stat", "title": "Total Services", "gridPos": {"h": 6, "w": 8, "x": 16, "y": 0}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "count(probe_success{job=\"health_checks\"})", "refId": "A"}]},
+    {"id": 4, "type": "table", "title": "Service Availability", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "probe_success{job=\"health_checks\"}", "legendFormat": "{{service}}", "refId": "A"}], "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []}},
+    {"id": 5, "type": "timeseries", "title": "Response Time", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "probe_duration_seconds{job=\"health_checks\"}", "legendFormat": "{{service}}", "refId": "A"}]}
+  ],
+  "templating": {"list": []},
+  "annotations": {"list": []}
+}

@@ -52,3 +52,26 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: blackbox-exporter:9115
+
+  # Node Exporter — host metrics (CPU, RAM, disk, network, uptime)
+  - job_name: node_exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          instance: aclimate-host
+
+  # cAdvisor — per-container metrics (CPU, RAM, network I/O, disk I/O)
+  - job_name: cadvisor
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["cadvisor:8080"]
+        labels:
+          job: container-metrics
+
+  # PostgreSQL Exporter — database metrics
+  - job_name: postgres
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+        labels:
+          db: aclimate_db

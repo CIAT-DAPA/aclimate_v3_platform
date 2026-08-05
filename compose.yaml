@@ -320,6 +320,56 @@ services:
     networks:
       - aclimate_net
 
+  # ── Node Exporter (monitoring — host metrics: CPU, RAM, disk, network) ──
+  node-exporter:
+    profiles: [monitoring]
+    image: prom/node-exporter:v1.8.2
+    container_name: aclimate_node_exporter
+    restart: unless-stopped
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/host/root
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
+    ports:
+      - "9100:9100"
+    networks:
+      - aclimate_net
+
+  # ── cAdvisor (monitoring — per-container metrics: CPU, RAM, I/O) ──
+  cadvisor:
+    profiles: [monitoring]
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: aclimate_cadvisor
+    restart: unless-stopped
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "8081:8080"
+    networks:
+      - aclimate_net
+
+  # ── PostgreSQL Exporter (monitoring — database metrics) ──
+  postgres-exporter:
+    profiles: [monitoring]
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: aclimate_postgres_exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${ACLIMATE_DB_USER:-postgres}:${ACLIMATE_DB_PASSWORD:-admin}@db_aclimate:5432/${ACLIMATE_DB_NAME:-aclimate_db}?sslmode=disable"
+    ports:
+      - "9187:9187"
+    networks:
+      - aclimate_net
+
   # ── Admin (Flask + Gunicorn) ──
   admin:
     image: ghcr.io/ciat-dapa/aclimate_v3_admin:latest

@@ -218,7 +218,7 @@ docker compose up -d
 
 ---
 
-## 📈 Monitoring (Grafana + Prometheus + Loki + Blackbox)
+## 📈 Monitoring (Grafana + Prometheus + Loki + Exporters)
 
 The full observability stack runs inside Compose with the `monitoring` profile:
 
@@ -233,27 +233,32 @@ docker compose --profile db --profile monitoring up -d
 | Loki              | http://localhost:3100 | —           | Log aggregation backend                  |
 | Promtail          | —                     | —           | Collects container logs → Loki           |
 | Blackbox exporter | http://localhost:9115 | —           | Probes health endpoints of every service |
+| Node Exporter     | http://localhost:9100 | —           | Host metrics (CPU, RAM, disk, network)   |
+| cAdvisor          | http://localhost:8081 | —           | Per-container metrics (CPU, RAM, I/O)    |
+| PostgreSQL Exp.   | http://localhost:9187 | —           | Database metrics (connections, locks)    |
 
 ### What is monitored
 
-| Data                                                      | Source                                  |
-| --------------------------------------------------------- | --------------------------------------- |
-| Uptime + latency of WebAPI, Frontend, Keycloak, GeoServer | Blackbox → Prometheus (`probe_success`) |
-| Keycloak JVM, HTTP requests, threads, errors              | Keycloak `/metrics` → Prometheus        |
-| Logs of **all** containers                                | Promtail → Loki                         |
+| Data                                                                | Source                                  |
+| ------------------------------------------------------------------- | --------------------------------------- |
+| Uptime + latency of WebAPI, Frontend, Keycloak, GeoServer           | Blackbox → Prometheus (`probe_success`) |
+| Keycloak JVM, HTTP requests, threads, errors                        | Keycloak `/metrics` → Prometheus        |
+| Host CPU, RAM, disk, network, uptime                                | Node Exporter → Prometheus              |
+| Per-container CPU, RAM, network I/O, restarts                       | cAdvisor → Prometheus                   |
+| PostgreSQL connections, locks, deadlocks, WAL, size                 | postgres-exporter → Prometheus          |
+| Logs of **all** containers (with labels: container, service, image) | Promtail → Loki                         |
 
-### Dashboard: `AClimate Overview` (auto-provisioned)
+### Dashboards (auto-provisioned, organized by folder)
 
-| Panel                           | Type       | Source     |
-| ------------------------------- | ---------- | ---------- |
-| Service Status (blackbox)       | table      | Prometheus |
-| Response Time (blackbox)        | timeseries | Prometheus |
-| Container Logs                  | logs       | Loki       |
-| Log Volume per Container        | timeseries | Loki       |
-| Keycloak Request Rate           | timeseries | Prometheus |
-| Keycloak JVM Heap Memory        | timeseries | Prometheus |
-| Total HTTP 200 / 5xx (Keycloak) | stat       | Prometheus |
-| JVM Live Threads                | stat       | Prometheus |
+| Folder             | Dashboard                    | Source            |
+| ------------------ | ---------------------------- | ----------------- |
+| **Infrastructure** | Node Exporter Full           | Prometheus        |
+| **Infrastructure** | Docker Containers (cAdvisor) | Prometheus        |
+| **Application**    | AClimate Overview            | Prometheus + Loki |
+| **Application**    | Service Status (Blackbox)    | Prometheus        |
+| **Database**       | PostgreSQL Overview          | Prometheus        |
+| **Authentication** | Keycloak Overview            | Prometheus        |
+| **Logs**           | Container Logs (Loki)        | Loki              |
 
 Dashboards are auto-provisioned from `config/grafana/dashboards/` on first start.
 To query logs interactively: Grafana → **Explore** (compass icon) → datasource **Loki** → `{container=~"aclimate.*"}`.

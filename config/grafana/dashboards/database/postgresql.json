@@ -1,0 +1,23 @@
+{
+  "uid": "postgresql-overview",
+  "title": "PostgreSQL Overview",
+  "tags": ["database"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Active Connections", "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "pg_stat_activity_count{datname=\"aclimate_db\"}", "refId": "A"}]},
+    {"id": 2, "type": "stat", "title": "Deadlocks", "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "rate(pg_stat_database_deadlocks{datname=\"aclimate_db\"}[5m])", "refId": "A"}]},
+    {"id": 3, "type": "stat", "title": "Cache Hit Ratio", "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "pg_stat_database_blks_hit{datname=\"aclimate_db\"} / (pg_stat_database_blks_hit{datname=\"aclimate_db\"} + pg_stat_database_blks_read{datname=\"aclimate_db\"}) * 100", "refId": "A"}]},
+    {"id": 4, "type": "stat", "title": "Database Size", "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "pg_database_size_bytes{datname=\"aclimate_db\"}", "refId": "A"}], "fieldConfig": {"defaults": {"unit": "bytes"}}},
+    {"id": 5, "type": "timeseries", "title": "Connections", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "pg_stat_activity_count{datname=\"aclimate_db\"}", "legendFormat": "total", "refId": "A"}]},
+    {"id": 6, "type": "timeseries", "title": "Transactions/sec", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "rate(pg_stat_database_xact_commit{datname=\"aclimate_db\"}[1m]) + rate(pg_stat_database_xact_rollback{datname=\"aclimate_db\"}[1m])", "legendFormat": "txn/s", "refId": "A"}]},
+    {"id": 7, "type": "timeseries", "title": "Queries/sec", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "rate(pg_stat_database_tup_returned{datname=\"aclimate_db\"}[1m])", "legendFormat": "returned", "refId": "A"}, {"expr": "rate(pg_stat_database_tup_fetched{datname=\"aclimate_db\"}[1m])", "legendFormat": "fetched", "refId": "B"}]},
+    {"id": 8, "type": "timeseries", "title": "Locks", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "pg_locks_count{datname=\"aclimate_db\"}", "legendFormat": "locks", "refId": "A"}]},
+    {"id": 9, "type": "timeseries", "title": "Checkpoints", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 22}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "rate(pg_stat_bgwriter_checkpoints_timed[5m]) + rate(pg_stat_bgwriter_checkpoints_req[5m])", "legendFormat": "checkpoints", "refId": "A"}]},
+    {"id": 10, "type": "timeseries", "title": "WAL Writes", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 22}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "rate(pg_stat_wal_wal_bytes[1m])", "legendFormat": "bytes/s", "refId": "A"}]}
+  ],
+  "templating": {"list": []},
+  "annotations": {"list": []}
+}

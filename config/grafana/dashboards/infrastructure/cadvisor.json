@@ -1,0 +1,33 @@
+{
+  "uid": "cadvisor-containers",
+  "title": "Docker Containers",
+  "tags": ["infrastructure"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "container_id",
+        "type": "query",
+        "datasource": {"uid": "prometheus"},
+        "query": "label_values(container_cpu_usage_seconds_total{job=\"container-metrics\", id=~\"/docker/.+\"}, id)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {"text": "All", "value": "$__all"}
+      }
+    ]
+  },
+  "panels": [
+    {"id": 1, "type": "timeseries", "title": "CPU Usage per Container", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "sum(rate(container_cpu_usage_seconds_total{job=\"container-metrics\", id=~\"$container_id\"}[1m])) by (id)", "legendFormat": "{{id}}", "refId": "A"}]},
+    {"id": 2, "type": "timeseries", "title": "Memory Usage per Container", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "container_memory_usage_bytes{job=\"container-metrics\", id=~\"$container_id\"}", "legendFormat": "{{id}}", "refId": "A"}]},
+    {"id": 3, "type": "timeseries", "title": "Network I/O (RX)", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "rate(container_network_receive_bytes_total{job=\"container-metrics\", id=~\"$container_id\"}[1m])", "legendFormat": "{{id}}", "refId": "A"}]},
+    {"id": 4, "type": "timeseries", "title": "Network I/O (TX)", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "rate(container_network_transmit_bytes_total{job=\"container-metrics\", id=~\"$container_id\"}[1m])", "legendFormat": "{{id}}", "refId": "A"}]},
+    {"id": 5, "type": "stat", "title": "Container Restarts", "gridPos": {"h": 4, "w": 8, "x": 0, "y": 16}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "sum(container_restart_count{job=\"container-metrics\", id=~\"$container_id\"}) by (id)", "legendFormat": "{{id}}", "refId": "A"}]},
+    {"id": 6, "type": "stat", "title": "Running Containers", "gridPos": {"h": 4, "w": 8, "x": 8, "y": 16}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "count(container_start_time_seconds{job=\"container-metrics\", id=~\"/docker/.+\", id!=\"/docker\"})", "refId": "A"}]},
+    {"id": 7, "type": "bargauge", "title": "Top CPU Consumers", "gridPos": {"h": 4, "w": 8, "x": 16, "y": 16}, "datasource": {"uid": "prometheus"}, "targets": [{"expr": "topk(5, sum(rate(container_cpu_usage_seconds_total{job=\"container-metrics\", id=~\"/docker/.+\"}[5m])) by (id))", "legendFormat": "{{id}}", "refId": "A"}]}
+  ],
+  "annotations": {"list": []}
+}
