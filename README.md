@@ -163,22 +163,22 @@ The frontend is automatically rebuilt with `NEXT_PUBLIC_KEYCLOAK_URL=http://loca
 
 ## 🗄️ Database — Bootstrap and dumps
 
-The `aclimate` database is restored automatically on the **first start** (empty volume) from a dump:
+The `aclimate` database is restored automatically on the **first start** (empty volume). The restore script (`bootstrap/db/init/02-restore-dump.sh`) **finds any `*.dump` file** in `bootstrap/db/dumps/` — the name does not matter:
 
 ```
-bootstrap/db/dumps/       ← put your .dump / .backup / .sql.gz here
+bootstrap/db/dumps/       ← put any .dump file here (e.g. aclimate_pg_20260804.dump)
 ```
 
 **Dumps are NOT committed to git** (see `.gitignore`). To restore from your local dump:
 
 ```bash
-# 1. Copy your dump
-copy C:\Users\YOUR_USER\Downloads\aclimate_pg_20260528.dump bootstrap\db\dumps\
+# 1. Copy your dump (any name works)
+copy C:\Users\YOUR_USER\Downloads\aclimate_pg_20260804.dump bootstrap\db\dumps\
 
 # 2. If you already started the stack before, wipe the data volume:
 docker compose down -v
 
-# 3. Start again (automatic restore)
+# 3. Start again (automatic detect + restore)
 docker compose --profile db up -d
 ```
 
@@ -281,37 +281,99 @@ To query logs interactively: Grafana → **Explore** (compass icon) → datasour
 
 ---
 
-## �️ GeoServer — Bootstrap data
+## 🗺️ GeoServer — Bootstrap data
 
-GeoServer starts with a pre-configured data directory copied on **first start** (empty volume) from `bootstrap/geoserver/data_dir/`:
+GeoServer starts with a pre-configured data directory copied on **first start** (empty volume) from `bootstrap/geoserver/data_dir/`. The copy is performed by `bootstrap/geoserver/init.sh`, which is idempotent: it only copies when the volume is empty.
+
+### 📁 Supported structure (important!)
+
+The `data_dir` **must follow this exact layout** for GeoServer to load workspaces, stores, and layers correctly:
 
 ```
-bootstrap/geoserver/
-├── init.sh          ← idempotent: copies data_dir only if the volume is empty
-└── data_dir/        ← gitignored: workspaces XMLs + raster data (TIFs)
-    ├── workspace.xml
-    ├── namespace.xml
-    ├── styles/
-    ├── workspaces/
-    └── data/
-        └── climate_index/...
+bootstrap/geoserver/data_dir/
+├── .gitkeep                      ← keeps the folder in git (only this file is tracked)
+├── workspace.xml                 ← ID of the default workspace (see below)
+├── data/                         ← actual raster/vector data files (TIFs, shapefiles, .properties)
+└── workspaces/
+    └── <workspace_name>/         ← e.g. climate_index
+        ├── workspace.xml         ← workspace definition (must have <isolated>false</isolated>)
+        ├── namespace.xml         ← namespace definition (must have <isolated>false</isolated>)
+        ├── wms.xml               ← WMS service config for this workspace
+        ├── wfs.xml               ← WFS service config for this workspace
+        ├── wcs.xml               ← WCS service config for this workspace
+        ├── styles/               ← SLD styles + their XML definitions
+        │   ├── <style_name>.sld
+        │   └── <style_name>.xml
+        └── <store_name>/         ← one folder per coverage store
+            ├── coveragestore.xml ← store definition (references data path)
+            └── <store_name>/     ← folder with same name as store
+                ├── coverage.xml  ← raster/vector coverage definition
+                └── layer.xml     ← layer definition (references style)
 ```
 
-To seed your own data:
+### ⚠️ Critical rules for a working bootstrap
+
+| Rule                                                                                   | Why                                                                          |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `workspace.xml` and `namespace.xml` **must be inside** `workspaces/<name>/`            | Without them GeoServer does NOT load the workspace                           |
+| `<isolated>` must be `false` in both                                                   | `true` hides the workspace and breaks GetCapabilities (NullPointerException) |
+| `wms.xml`, `wfs.xml`, `wcs.xml` must be **inside the workspace folder**                | Root-level service files cause "No default workspace was found"              |
+| `styles/` must be **inside the workspace folder**                                      | GeoServer looks for SLD resources relative to the workspace                  |
+| `workspace.xml` at data_dir **root** must contain ONLY the ID of the default workspace | This file declares which workspace is the default                            |
+
+Example of `workspace.xml` at data_dir root (default workspace pointer):
+
+```xml
+<workspace>
+  <id>WorkspaceInfoImpl--3810f31d:19a3d0b823e:2426</id>
+</workspace>
+```
+
+Example of `workspaces/climate_index/workspace.xml`:
+
+```xml
+<workspace>
+  <id>WorkspaceInfoImpl--3810f31d:19a3d0b823e:2426</id>
+  <name>climate_index</name>
+  <isolated>false</isolated>
+  <dateCreated>2025-11-10 16:26:31.205 UTC</dateCreated>
+  <dateModified>2025-11-10 16:26:46.813 UTC</dateModified>
+</workspace>
+```
+
+Example of `coveragestore.xml` (note the `url` points to `data/`):
+
+```xml
+<coverageStore>
+  <id>CoverageStoreInfoImpl--3810f31d:19d37980855:-44de</id>
+  <name>climate_index_annual_sv_CDD</name>
+  <type>ImageMosaic</type>
+  <enabled>true</enabled>
+  <workspace>
+    <id>WorkspaceInfoImpl--3810f31d:19a3d0b823e:2426</id>
+  </workspace>
+  <url>file:data/climate_index/climate_index_annual_sv_CDD</url>
+</coverageStore>
+```
+
+### How to seed your own data
 
 ```bash
 # 1. Export the data_dir from an existing GeoServer
 scp -r user@server:/opt/geoserver/data_dir/* bootstrap/geoserver/data_dir/
 
-# 2. On a clean volume (first start), GeoServer copies it automatically
+# 2. If you already started the stack before, wipe the volume:
+docker compose down -v
+
+# 3. Start (bootstrap copies data_dir automatically)
 docker compose --profile db up -d
 ```
 
-> ⚠️ `bootstrap/geoserver/data_dir/` is **gitignored** (heavy raster data). Only the `init.sh` script is tracked.
+> ⚠️ `bootstrap/geoserver/data_dir/` is **gitignored** (heavy raster data). Only `.gitkeep` and `init.sh` are tracked. No manual editing needed — just drop your exported data_dir there.
 
 ---
 
-## �🛠️ Troubleshooting
+## 🛠️ Troubleshooting
 
 | Problem                          | Solution                                                                                                 |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------- |
