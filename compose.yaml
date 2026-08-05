@@ -184,8 +184,8 @@ services:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/geoserver/"]
       interval: 30s
       timeout: 15s
-      retries: 5
-      start_period: 60s
+      retries: 10
+      start_period: 120s
     networks:
       - aclimate_net
 
@@ -228,7 +228,7 @@ services:
       keycloak:
         condition: service_healthy
       geoserver:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3002/health"]
       interval: 30s
@@ -407,10 +407,10 @@ services:
     networks:
       - aclimate_net
 
-  # ── Frontend (Next.js) ──
+  # ── Frontend (Next.js — auto-cloned from GitHub) ──
   frontend:
     build:
-      context: ${FRONTEND_PATH:-../aclimate_v3_frontend}
+      context: ./bootstrap/frontend
       dockerfile: Dockerfile
       args:
         # URLs generated automatically from port variables — no manual URL editing

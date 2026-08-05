@@ -1,6 +1,6 @@
 # 🌦️ AClimate v3 Platform
 
-Docker Compose orchestration for the AClimate v3 ecosystem. Launches the API, Frontend, Keycloak, GeoServer, and databases with **a single command** — with persistence and auto-generated URLs.
+Docker Compose orchestration for the AClimate v3 ecosystem. Launches the API, Frontend, Keycloak, GeoServer, databases, and monitoring with **a single command** — with persistence and auto-generated URLs.
 
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌──────────────┐
@@ -17,38 +17,40 @@ Docker Compose orchestration for the AClimate v3 ecosystem. Launches the API, Fr
 │  port: 8080     │     │  port: 3002      │
 └────────┬────────┘     └────────┬─────────┘
          │                       │
-         └───────────┬───────────┘
-                     ▼
-            ┌──────────────────┐
-            │    frontend      │
-            │   Build local    │
-            │   port: 3000     │
-            └──────────────────┘
+         └───────────┬───────────┘        ┌──────────────┐
+                     ▼                    │  users-api   │
+            ┌──────────────────┐          │   port:3004  │
+            │    frontend      │          └──────┬───────┘
+            │   Clone GitHub   │                 │
+            │   port: 3000     │                 ▼
+            └──────────────────┘         ┌──────────────────┐
+                                         │      admin       │
+                                         │   port: 3003     │
+                                         └──────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│                    MONITORING (optional)                      │
+│  prometheus:9090  grafana:3001  loki:3100  blackbox:9115      │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-**8 services** from the repos:
+**13 services**, including:
 
 - **API**: `ghcr.io/ciat-dapa/aclimate_v3_webapi` ([repo](https://github.com/CIAT-DAPA/aclimate_v3_webapi))
-- **Frontend**: local build from `aclimate_v3_frontend` ([repo](https://github.com/CIAT-DAPA/aclimate_v3_frontend))
+- **Frontend**: auto-cloned from `aclimate_v3_frontend` ([repo](https://github.com/CIAT-DAPA/aclimate_v3_frontend)) — no local clone needed
 - **Admin**: local build from `aclimate_v3_admin` ([repo](https://github.com/CIAT-DAPA/aclimate_v3_admin))
 - **Users API**: `ghcr.io/ciat-dapa/aclimate_v3_frontend_users_webapi` ([repo](https://github.com/CIAT-DAPA/aclimate_v3_frontend_users_webapi)) — user preferences/stations backend
 - **Keycloak** + **GeoServer** + **2x PostgreSQL (PostGIS)**
+- **Monitoring**: Prometheus, Grafana, Loki, Promtail, Blackbox exporter
 
 ---
 
 ## 📌 Prerequisites
 
 - Docker Engine 24+ with Compose plugin
-- `aclimate_v3_frontend` cloned next to this repo (or set `FRONTEND_PATH`)
 - Access to `ghcr.io` for the API image
 
-```bash
-# Recommended layout
-d:\Code\
-├── aclimate_v3_platform/    ← this repo
-├── aclimate_v3_frontend/    ← required clone
-└── aclimate_v3_webapi/      ← (only if you want to work on the source)
-```
+> The frontend is **auto-cloned from GitHub** during the Docker build (see `bootstrap/frontend/Dockerfile`) — no local clone required.
 
 ---
 
@@ -157,7 +159,6 @@ The frontend is automatically rebuilt with `NEXT_PUBLIC_KEYCLOAK_URL=http://loca
 | `NEXT_PUBLIC_ACLIMATE_API_FRONTEND_URL` | _(external)_                 | User preferences API                       |
 | `NEXT_PUBLIC_BASE_PATH`                 | _(empty)_                    | Deployment subpath (e.g. `/ahuachapansur`) |
 | `KEYCLOAK_CLIENT_SECRET`                | _(sensitive)_                | Frontend runtime secret                    |
-| `FRONTEND_PATH`                         | `../aclimate_v3_frontend`    | Path to the frontend repo                  |
 
 ---
 
